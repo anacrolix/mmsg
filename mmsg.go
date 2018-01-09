@@ -1,7 +1,6 @@
 package mmsg
 
 import (
-	"log"
 	"net"
 	"syscall"
 
@@ -41,9 +40,9 @@ func (me *Conn) recvMsgAsMsgs(ms []Message) (int, error) {
 }
 
 func (me *Conn) RecvMsgs(ms []Message) (n int, err error) {
-	defer func() {
-		log.Println(n, err)
-	}()
+	// defer func() {
+	// 	log.Println(n, err)
+	// }()
 	if me.err != nil {
 		return me.recvMsgAsMsgs(ms)
 	}
