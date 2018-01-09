@@ -2,16 +2,15 @@ package mmsg
 
 import (
 	"net"
-	"syscall"
 
 	"github.com/anacrolix/missinggo/assert"
 
 	"github.com/anacrolix/mmsg/socket"
 )
 
-// TODO: I think netbsd and linux support {recv,send}mmsg?
-
-const flags = syscall.MSG_DONTWAIT
+// Considered MSG_DONTWAIT, but I think Go puts the socket into non-blocking
+// mode in its runtime and it seems to do the right thing.
+const flags = 0
 
 type Conn struct {
 	err error
