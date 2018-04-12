@@ -3,7 +3,7 @@ package mmsg
 import (
 	"net"
 
-	"github.com/anacrolix/missinggo/assert"
+	"github.com/anacrolix/missinggo/expect"
 
 	"github.com/anacrolix/mmsg/socket"
 )
@@ -51,7 +51,7 @@ func (me *Conn) RecvMsgs(ms []Message) (n int, err error) {
 	}
 	n, err = me.s.RecvMsgs(sms, flags)
 	if err != nil && err.Error() == "not implemented" {
-		assert.Nil(me.err)
+		expect.Nil(me.err)
 		me.err = err
 		if n <= 0 {
 			return me.recvMsgAsMsgs(ms)
