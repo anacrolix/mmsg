@@ -5,13 +5,19 @@ import (
 	"net"
 	"testing"
 
-	"github.com/anacrolix/missinggo/iter"
+	// testify sux, switch to frankban/quicktest
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func udpSocket(t *testing.T) net.PacketConn {
-	pc, err := net.ListenPacket("udp", "localhost:0")
+func udpSocket(t *testing.T) interface {
+	net.PacketConn
+	net.Conn
+} {
+	pc, err := net.ListenUDP("udp", &net.UDPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: 0,
+	})
 	require.NoError(t, err)
 	return pc
 }
@@ -34,7 +40,7 @@ func TestReceiveBatch(t *testing.T) {
 	s.WriteTo([]byte(b1), r.LocalAddr())
 	s.WriteTo([]byte(b2), r.LocalAddr())
 	var ms []Message
-	for range iter.N(3) {
+	for range 3 {
 		ms = append(ms, Message{
 			Buffers: [][]byte{make([]byte, 0x1000)},
 		})

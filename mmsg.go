@@ -2,8 +2,7 @@ package mmsg
 
 import (
 	"net"
-
-	"github.com/anacrolix/missinggo/expect"
+	"strings"
 
 	"github.com/anacrolix/mmsg/socket"
 )
@@ -20,6 +19,7 @@ type Conn struct {
 
 type PacketReader interface {
 	ReadFrom([]byte) (int, net.Addr, error)
+	net.Conn
 }
 
 func NewConn(pr PacketReader) *Conn {
@@ -47,8 +47,10 @@ func (me *Conn) RecvMsgs(ms []Message) (n int, err error) {
 		sms[i].Buffers = ms[i].Buffers
 	}
 	n, err = me.s.RecvMsgs(sms, flags)
-	if err != nil && err.Error() == "not implemented" {
-		expect.Nil(me.err)
+	if err != nil && strings.Contains(err.Error(), "not implemented") {
+		if me.err != nil {
+			panic(me.err)
+		}
 		me.err = err
 		if n <= 0 {
 			return me.recvMsgAsMsgs(ms)
