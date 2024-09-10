@@ -1,6 +1,7 @@
 package mmsg
 
 import (
+	"errors"
 	"net"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 const flags = 0
 
 type Conn struct {
+	// If this is not nil, attempts to use batch APIs will be skipped automatically.
 	err error
 	s   *socket.Conn
 	pr  PacketReader
@@ -19,14 +21,19 @@ type Conn struct {
 
 type PacketReader interface {
 	ReadFrom([]byte) (int, net.Addr, error)
-	net.Conn
 }
 
+// pr must implement net.Conn for mmsg to be enabled.
 func NewConn(pr PacketReader) *Conn {
 	ret := Conn{
 		pr: pr,
 	}
-	ret.s, ret.err = socket.NewConn(pr)
+	nc, ok := pr.(net.Conn)
+	if ok {
+		ret.s, ret.err = socket.NewConn(nc)
+	} else {
+		ret.err = errors.New("mmsg.NewConn: not a net.Conn")
+	}
 	return &ret
 }
 
@@ -98,6 +105,7 @@ func (me *Message) Payload() (p []byte) {
 	panic(n)
 }
 
+// Returns not nil if message batching is not working.
 func (me *Conn) Err() error {
 	return me.err
 }
