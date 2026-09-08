@@ -5,9 +5,7 @@ import (
 	"net"
 	"testing"
 
-	// testify sux, switch to frankban/quicktest
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/go-quicktest/qt"
 )
 
 func udpSocket(t *testing.T) interface {
@@ -18,7 +16,7 @@ func udpSocket(t *testing.T) interface {
 		IP:   net.ParseIP("127.0.0.1"),
 		Port: 0,
 	})
-	require.NoError(t, err)
+	qt.Assert(t, qt.IsNil(err))
 	return pc
 }
 
@@ -26,8 +24,8 @@ func payload(t *testing.T) string {
 	n := rand.Intn(512) + 1
 	b := make([]byte, n)
 	nn, err := rand.Read(b)
-	require.NoError(t, err)
-	assert.Equal(t, n, nn)
+	qt.Assert(t, qt.IsNil(err))
+	qt.Check(t, qt.Equals(nn, n))
 	return string(b)
 }
 
@@ -46,15 +44,15 @@ func TestReceiveBatch(t *testing.T) {
 		})
 	}
 	n, err := mc.RecvMsgs(ms)
-	assert.NoError(t, err)
+	qt.Check(t, qt.IsNil(err))
 	t.Log(n)
 	if mc.Err() == nil {
-		assert.Equal(t, 2, n)
-		assert.EqualValues(t, b1, ms[0].Payload())
-		assert.EqualValues(t, b2, ms[1].Payload())
+		qt.Check(t, qt.Equals(n, 2))
+		qt.Check(t, qt.Equals(string(ms[0].Payload()), b1))
+		qt.Check(t, qt.Equals(string(ms[1].Payload()), b2))
 	} else {
 		t.Logf("error using multi: %s", mc.Err())
-		assert.Equal(t, 1, n)
-		assert.EqualValues(t, b1, ms[0].Payload())
+		qt.Check(t, qt.Equals(n, 1))
+		qt.Check(t, qt.Equals(string(ms[0].Payload()), b1))
 	}
 }
