@@ -15,15 +15,14 @@ import (
 
 type mmsghdrs []mmsghdr
 
-func (hs mmsghdrs) unpack(ms []Message, parseFn func([]byte, string) (net.Addr, error), hint string) error {
+// netAddr is a local addition: it says whether Message.Addr is wanted as well as AddrPort.
+func (hs mmsghdrs) unpack(ms []Message, parseAddrs bool, hint string, netAddr bool) error {
 	for i := range hs {
 		ms[i].N = int(hs[i].Len)
 		ms[i].NN = hs[i].Hdr.controllen()
 		ms[i].Flags = hs[i].Hdr.flags()
-		if parseFn != nil {
-			var err error
-			ms[i].Addr, err = parseFn(hs[i].Hdr.name(), hint)
-			if err != nil {
+		if parseAddrs {
+			if err := setMessageAddr(&ms[i], hs[i].Hdr.name(), hint, netAddr); err != nil {
 				return err
 			}
 		}

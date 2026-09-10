@@ -30,7 +30,14 @@ func (c *Conn) recvMsg(m *Message, flags int) error {
 	if operr != nil {
 		return os.NewSyscallError("recvmsg", operr)
 	}
+	// Local addition: AddrPort alongside Addr. This path reaches the address through
+	// unix.RecvmsgBuffers, which has already allocated a sockaddr for it, so SkipNetAddr only
+	// keeps the contract here rather than saving anything.
+	m.AddrPort = NetAddrToAddrPort(from)
 	m.Addr = from
+	if c.SkipNetAddr {
+		m.Addr = nil
+	}
 	m.N = n
 	m.NN = oobn
 	m.Flags = recvflags

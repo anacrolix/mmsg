@@ -9,6 +9,7 @@ package socket // import "github.com/anacrolix/mmsg/socket"
 import (
 	"errors"
 	"net"
+	"net/netip"
 	"runtime"
 	"unsafe"
 )
@@ -233,6 +234,11 @@ type Message struct {
 	// After a successful read, it may contain the source address
 	// on the received packet.
 	Addr net.Addr
+
+	// AddrPort is a local addition, with no upstream counterpart. After a successful read from
+	// an IP socket it holds the source address, whether or not Addr was filled in. It costs no
+	// allocation, so unlike Addr it is always set.
+	AddrPort netip.AddrPort
 
 	N     int // # of bytes read or written from/to Buffers
 	NN    int // # of bytes read or written from/to OOB
