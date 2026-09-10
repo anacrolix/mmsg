@@ -2,6 +2,8 @@ github.com/anacrolix/mmsg exposes the batching methods from golang.org/x/net/int
 
 golang.org/x/net does expose the batching APIs but you have to be explicit about whether you're using ipv4 or ipv6, and IDGAF, it shouldn't be exposed like that.
 
+Message.AddrPort reports the sender as a netip.AddrPort, which costs nothing to produce. Message.Addr costs an allocation for the net.Addr and another for the net.IP inside it, so Conn.SkipNetAddrs turns it off for callers that don't want it. With it set a receive allocates nothing at all, batched or not.
+
 ./socket is taken from golang.org/x/net/internal/socket because we need access to the package and it's internal to golang.org/x/net/internal/socket.
 ./internal/nettest is taken from golang.org/x/net/nettest. I think because ./socket expects it and we don't want to unnecessarily introduce extra dependencies to golang.org/x/net.
 

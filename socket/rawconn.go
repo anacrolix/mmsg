@@ -15,6 +15,9 @@ import (
 type Conn struct {
 	network string
 	c       syscall.RawConn
+	// Local addition, with no upstream counterpart: when set, a receive leaves Message.Addr nil
+	// and reports the peer in Message.AddrPort alone, which is what makes it allocation free.
+	SkipNetAddr bool
 }
 
 // tcpConn is an interface implemented by net.TCPConn.
