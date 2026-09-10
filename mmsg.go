@@ -21,8 +21,7 @@ type Conn struct {
 	s   *socket.Conn
 	pr  PacketReader
 	// Set when pr has it, to read the sender without allocating a net.Addr.
-	apr         packetReaderAddrPort
-	skipNetAddr bool
+	apr packetReaderAddrPort
 	// Reused between calls, so a batch receive doesn't allocate one per call.
 	sms []socket.Message
 }
@@ -52,16 +51,6 @@ func NewConn(pr PacketReader) *Conn {
 	return &ret
 }
 
-// SkipNetAddrs stops receives filling Message.Addr, leaving the sender in Message.AddrPort alone.
-// Building the net.Addr is the last thing a receive allocates, so a caller that can work with a
-// netip.AddrPort should set this. Set it before the first receive.
-func (me *Conn) SkipNetAddrs(skip bool) {
-	me.skipNetAddr = skip
-	if me.s != nil {
-		me.s.SkipNetAddr = skip
-	}
-}
-
 func (me *Conn) recvMsgAsMsgs(ms []Message) (int, error) {
 	err := me.RecvMsg(&ms[0])
 	if err != nil {
@@ -87,8 +76,7 @@ func (me *Conn) RecvMsgs(ms []Message) (n int, err error) {
 		err = nil
 	}
 	for i := 0; i < n; i++ {
-		ms[i].Addr = sms[i].Addr
-		ms[i].AddrPort = sms[i].AddrPort
+		ms[i].setSender(sms[i].AddrPort, nil)
 		ms[i].N = sms[i].N
 	}
 	return n, err
@@ -108,28 +96,23 @@ func (me *Conn) socketMsgs(ms []Message) []socket.Message {
 
 func (me *Conn) RecvMsg(m *Message) error {
 	if len(m.Buffers) == 1 { // What about 0?
-		var err error
 		if me.apr != nil {
-			m.N, m.AddrPort, err = me.apr.ReadFromUDPAddrPort(m.Buffers[0])
-			m.Addr = nil
-			if err == nil && !me.skipNetAddr {
-				m.Addr = net.UDPAddrFromAddrPort(m.AddrPort)
-			}
+			n, ap, err := me.apr.ReadFromUDPAddrPort(m.Buffers[0])
+			m.N = n
+			m.setSender(ap, nil)
 			return err
 		}
-		m.N, m.Addr, err = me.pr.ReadFrom(m.Buffers[0])
-		m.AddrPort = socket.NetAddrToAddrPort(m.Addr)
-		if me.skipNetAddr {
-			m.Addr = nil
-		}
+		n, addr, err := me.pr.ReadFrom(m.Buffers[0])
+		m.N = n
+		// A PacketReader of some other kind can have an address netip can't hold, so keep it.
+		m.setSender(socket.NetAddrToAddrPort(addr), addr)
 		return err
 	}
 	sm := socket.Message{
 		Buffers: m.Buffers,
 	}
 	err := me.s.RecvMsg(&sm, flags)
-	m.Addr = sm.Addr
-	m.AddrPort = sm.AddrPort
+	m.setSender(sm.AddrPort, nil)
 	m.N = sm.N
 	return err
 }
@@ -137,11 +120,31 @@ func (me *Conn) RecvMsg(m *Message) error {
 type Message struct {
 	Buffers [][]byte
 	N       int
-	// The sender. Nil if the Conn was told to skip it with [Conn.SkipNetAddrs].
-	Addr net.Addr
-	// The sender, for an IP socket. Always filled in, and unlike Addr it costs no allocation. A
-	// 4-in-6 address stays mapped, exactly as the kernel reported it.
+	// AddrPort is the sender, and costs nothing to report: a netip.Addr holds its bytes inline.
+	// A 4-in-6 address is left mapped, exactly as the kernel reported it. Prefer this to Addr.
 	AddrPort netip.AddrPort
+
+	// Kept only when the sender isn't an address and port, which a PacketReader that isn't a
+	// UDP socket can produce.
+	otherAddr net.Addr
+	// What Addr has already built, if anything.
+	netAddr net.Addr
+}
+
+func (me *Message) setSender(ap netip.AddrPort, other net.Addr) {
+	me.AddrPort = ap
+	me.otherAddr = other
+	me.netAddr = other
+}
+
+// Addr is the sender as a net.Addr, built from AddrPort the first time it's asked for and kept
+// for later calls. Building it allocates the address and the net.IP inside it, which is why
+// receiving no longer does: use AddrPort where it will do.
+func (me *Message) Addr() net.Addr {
+	if me.netAddr == nil && me.AddrPort.IsValid() {
+		me.netAddr = net.UDPAddrFromAddrPort(me.AddrPort)
+	}
+	return me.netAddr
 }
 
 func (me *Message) Payload() (p []byte) {

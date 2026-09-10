@@ -60,15 +60,9 @@ func parseInetAddrPort(b []byte) (netip.AddrPort, bool) {
 	return netip.AddrPort{}, false
 }
 
-// Fills in a received message's peer address. netAddr asks for Addr as well as AddrPort, which is
-// the only part of receiving a message that has to allocate.
-func setMessageAddr(m *Message, name []byte, hint string, netAddr bool) error {
+// Fills in a received message's peer address. Only AddrPort is set: turning a sockaddr into a
+// net.Addr allocates, and the caller can do it from AddrPort if it turns out to want one.
+func setMessageAddr(m *Message, name []byte) {
 	m.AddrPort, _ = parseInetAddrPort(name)
-	if !netAddr {
-		m.Addr = nil
-		return nil
-	}
-	var err error
-	m.Addr, err = parseInetAddr(name, hint)
-	return err
+	m.Addr = nil
 }

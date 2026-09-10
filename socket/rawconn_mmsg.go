@@ -25,9 +25,7 @@ func (c *Conn) recvMsgs(ms []Message, flags int) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	if err := hs[:n].unpack(ms[:n], parseFn != nil, c.network, !c.SkipNetAddr); err != nil {
-		return n, err
-	}
+	hs[:n].unpack(ms[:n], parseFn != nil)
 	return n, nil
 }
 
@@ -46,8 +44,6 @@ func (c *Conn) sendMsgs(ms []Message, flags int) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	if err := hs[:n].unpack(ms[:n], false, "", false); err != nil {
-		return n, err
-	}
+	hs[:n].unpack(ms[:n], false)
 	return n, nil
 }

@@ -15,19 +15,17 @@ import (
 
 type mmsghdrs []mmsghdr
 
-// netAddr is a local addition: it says whether Message.Addr is wanted as well as AddrPort.
-func (hs mmsghdrs) unpack(ms []Message, parseAddrs bool, hint string, netAddr bool) error {
+// Local change: a receive reports the peer in Message.AddrPort rather than Message.Addr, so that
+// it allocates nothing. parseAddrs stands in for upstream's parseFn, which is no longer called.
+func (hs mmsghdrs) unpack(ms []Message, parseAddrs bool) {
 	for i := range hs {
 		ms[i].N = int(hs[i].Len)
 		ms[i].NN = hs[i].Hdr.controllen()
 		ms[i].Flags = hs[i].Hdr.flags()
 		if parseAddrs {
-			if err := setMessageAddr(&ms[i], hs[i].Hdr.name(), hint, netAddr); err != nil {
-				return err
-			}
+			setMessageAddr(&ms[i], hs[i].Hdr.name())
 		}
 	}
-	return nil
 }
 
 // mmsghdrsPacker packs Message-slices into mmsghdrs (re-)using pre-allocated buffers.
