@@ -8,7 +8,7 @@ import (
 	"github.com/go-quicktest/qt"
 )
 
-func recvOne(t *testing.T, mc *Conn, batch int) Message {
+func recvOne(t *testing.T, mc *Conn, batch int) *Message {
 	t.Helper()
 	ms := make([]Message, batch)
 	for i := range ms {
@@ -17,11 +17,11 @@ func recvOne(t *testing.T, mc *Conn, batch int) Message {
 	n, err := mc.RecvMsgs(ms)
 	qt.Assert(t, qt.IsNil(err))
 	qt.Assert(t, qt.Equals(n, 1))
-	return ms[0]
+	return &ms[0]
 }
 
-// AddrPort names the same sender as Addr, on both the batch and the single message path.
-func TestAddrPortMatchesAddr(t *testing.T) {
+// Addr names the same sender as AddrPort, on both the batch and the single message path.
+func TestAddrMatchesAddrPort(t *testing.T) {
 	for _, batch := range []int{1, 16} {
 		s := udpSocket(t)
 		r := udpSocket(t)
@@ -32,35 +32,17 @@ func TestAddrPortMatchesAddr(t *testing.T) {
 		qt.Assert(t, qt.IsNil(err))
 		m := recvOne(t, mc, batch)
 		qt.Check(t, qt.Equals(string(m.Payload()), "hi"))
-		qt.Assert(t, qt.IsNotNil(m.Addr))
 		want := s.LocalAddr().(*net.UDPAddr).AddrPort()
 		qt.Check(t, qt.Equals(m.AddrPort.Port(), want.Port()))
 		qt.Check(t, qt.Equals(m.AddrPort.Addr().Unmap(), want.Addr().Unmap()))
-		// Whatever the kernel reported, the two fields have to agree.
+		addr := m.Addr()
+		qt.Assert(t, qt.IsNotNil(addr))
 		qt.Check(t, qt.Equals(
-			m.Addr.(*net.UDPAddr).AddrPort().Addr().Unmap(),
+			addr.(*net.UDPAddr).AddrPort().Addr().Unmap(),
 			m.AddrPort.Addr().Unmap(),
 		))
-	}
-}
-
-// SkipNetAddrs leaves Addr nil and still reports the sender.
-func TestSkipNetAddrs(t *testing.T) {
-	for _, batch := range []int{1, 16} {
-		s := udpSocket(t)
-		r := udpSocket(t)
-		defer s.Close()
-		defer r.Close()
-		mc := NewConn(r)
-		mc.SkipNetAddrs(true)
-		_, err := s.WriteTo([]byte("hi"), r.LocalAddr())
-		qt.Assert(t, qt.IsNil(err))
-		m := recvOne(t, mc, batch)
-		qt.Check(t, qt.Equals(string(m.Payload()), "hi"))
-		qt.Check(t, qt.IsNil(m.Addr))
-		qt.Check(t, qt.IsTrue(m.AddrPort.IsValid()))
-		want := s.LocalAddr().(*net.UDPAddr).AddrPort()
-		qt.Check(t, qt.Equals(m.AddrPort.Port(), want.Port()))
+		// Asking twice hands back what was already built.
+		qt.Check(t, qt.Equals(m.Addr(), addr))
 	}
 }
 
@@ -85,6 +67,28 @@ func TestAddrPortIPv6(t *testing.T) {
 		qt.Check(t, qt.Equals(m.AddrPort.Addr().Unmap(), netip.IPv6Loopback()))
 		qt.Check(t, qt.Equals(m.AddrPort.Port(), s.LocalAddr().(*net.UDPAddr).AddrPort().Port()))
 	}
+}
+
+// A PacketReader that isn't a UDP socket keeps whatever address it reports.
+func TestOtherPacketReaderKeepsItsAddr(t *testing.T) {
+	mc := NewConn(&fakePacketReader{addr: fakeAddr("somewhere")})
+	m := Message{Buffers: [][]byte{make([]byte, 16)}}
+	qt.Assert(t, qt.IsNil(mc.RecvMsg(&m)))
+	qt.Check(t, qt.Equals(m.Addr(), net.Addr(fakeAddr("somewhere"))))
+	qt.Check(t, qt.IsFalse(m.AddrPort.IsValid()))
+}
+
+type fakeAddr string
+
+func (me fakeAddr) Network() string { return "fake" }
+func (me fakeAddr) String() string  { return string(me) }
+
+type fakePacketReader struct {
+	addr net.Addr
+}
+
+func (me *fakePacketReader) ReadFrom(b []byte) (int, net.Addr, error) {
+	return copy(b, "hi"), me.addr, nil
 }
 
 // The reused socket.Message slice must not leak a previous batch's results.
